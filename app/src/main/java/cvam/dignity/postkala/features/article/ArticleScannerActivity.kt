@@ -2,17 +2,11 @@ package cvam.dignity.postkala.features.article
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.ImageDecoder
-import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -34,13 +28,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.outlined.QrCode
 import androidx.compose.material3.Button
@@ -50,11 +43,9 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -71,7 +62,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -81,13 +71,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.MultiFormatWriter
 import cvam.dignity.postkala.features.scanner.CameraScannerDialog
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -107,7 +93,6 @@ fun ArticleScannerScreen(onBack: () -> Unit) {
     var lastScannedCode by remember { mutableStateOf("") }
     var currentIndex by remember { mutableIntStateOf(0) }
     var showCamera by remember { mutableStateOf(false) }
-    var isProcessing by remember { mutableStateOf(false) }
     var manualInput by remember { mutableStateOf("") }
     var scanningEnabled by remember { mutableStateOf(true) }
 
@@ -122,16 +107,6 @@ fun ArticleScannerScreen(onBack: () -> Unit) {
         }
     }
 
-    // Launch camera automatically when opened
-    LaunchedEffect(Unit) {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            scanningEnabled = true
-            showCamera = true
-        } else {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
-        }
-    }
-
     val addResults: (List<String>) -> Unit = { codes ->
         if (scanningEnabled) {
             scope.launch {
@@ -141,7 +116,7 @@ fun ArticleScannerScreen(onBack: () -> Unit) {
                         scanHistory.add(ScanResult(code = upperCode))
                         lastScannedCode = upperCode
                         withContext(Dispatchers.Default) {
-                            val bmp = generateArticleBarcode(upperCode, 600, 240)
+                            val bmp = generateBarcodeBitmap(upperCode, 600, 240)
                             if (bmp != null) barcodeCache[upperCode] = bmp
                         }
                     }
@@ -151,16 +126,15 @@ fun ArticleScannerScreen(onBack: () -> Unit) {
         }
     }
 
-    val galleryLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-            uri?.let {
-                isProcessing = true
-                performOcrOnGallery(context, it, articleRegex) { results ->
-                    addResults(results)
-                    isProcessing = false
-                }
-            }
+    // Auto-launch camera on start
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            scanningEnabled = true
+            showCamera = true
+        } else {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
         }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize().statusBarsPadding(),
@@ -177,39 +151,25 @@ fun ArticleScannerScreen(onBack: () -> Unit) {
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
 
-            // Screen renders without animations
             Column(
                 Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())
             ) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    ScannerActionCard(
-                        Modifier.weight(1f),
-                        "Live Scan",
-                        Icons.Default.PhotoCamera,
-                        MaterialTheme.colorScheme.primary
-                    ) {
-                        if (ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.CAMERA
-                            ) == PackageManager.PERMISSION_GRANTED
-                        ) {
+                // Unified Scan Button
+                Button(
+                    onClick = {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                             scanningEnabled = true
                             showCamera = true
                         } else {
                             permissionLauncher.launch(Manifest.permission.CAMERA)
                         }
-                    }
-                    ScannerActionCard(
-                        Modifier.weight(1f),
-                        "Gallery",
-                        Icons.Default.Collections,
-                        Color(0xFF00C853)
-                    ) {
-                        galleryLauncher.launch("image/*")
-                    }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("SCAN ARTICLE", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
 
                 Spacer(Modifier.height(24.dp))
@@ -243,10 +203,6 @@ fun ArticleScannerScreen(onBack: () -> Unit) {
                     }
                 }
 
-                if (isProcessing) LinearProgressIndicator(
-                    Modifier.fillMaxWidth().padding(vertical = 16.dp)
-                )
-
                 Spacer(Modifier.height(24.dp))
 
                 if (scanHistory.isNotEmpty()) {
@@ -273,7 +229,7 @@ fun ArticleScannerScreen(onBack: () -> Unit) {
                             val oldCode = scanHistory[currentIndex].code
                             scanHistory[currentIndex] = scanHistory[currentIndex].copy(code = newCode)
                             scope.launch(Dispatchers.Default) {
-                                val bmp = generateArticleBarcode(newCode, 600, 240)
+                                val bmp = generateBarcodeBitmap(newCode, 600, 240)
                                 if (bmp != null) {
                                     barcodeCache[newCode] = bmp
                                     if (oldCode != newCode) {
@@ -283,7 +239,7 @@ fun ArticleScannerScreen(onBack: () -> Unit) {
                             }
                         }
                     )
-                } else if (!isProcessing && manualInput.length != 13) {
+                } else if (manualInput.length != 13) {
                     EmptyScannerState()
                 }
                 Spacer(Modifier.height(40.dp))
@@ -293,7 +249,7 @@ fun ArticleScannerScreen(onBack: () -> Unit) {
                 CameraScannerDialog(
                     patterns = listOf(articleRegex),
                     title = "Scan Article Number",
-                    onDetected = { codes: List<String> ->
+                    onDetected = { codes ->
                         addResults(codes)
                     },
                     onDismiss = {
@@ -404,31 +360,11 @@ fun BatchResultViewer(
 }
 
 @Composable
-fun ScannerActionCard(modifier: Modifier, title: String, icon: ImageVector, color: Color, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier.height(100.dp),
-        shape = RoundedCornerShape(24.dp),
-        color = color.copy(0.08f),
-        border = BorderStroke(1.dp, color.copy(0.2f))
-    ) {
-        Column(
-            Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(icon, null, Modifier.size(32.dp), color)
-            Text(title, fontWeight = FontWeight.ExtraBold, color = color, fontSize = 14.sp)
-        }
-    }
-}
-
-@Composable
 fun ManualPreviewCard(code: String, onAdd: () -> Unit) {
     var previewBitmap by remember(code) { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(code) {
         withContext(Dispatchers.Default) {
-            previewBitmap = generateArticleBarcode(code, 600, 240)
+            previewBitmap = generateBarcodeBitmap(code, 600, 240)
         }
     }
     Card(
@@ -472,27 +408,8 @@ fun EmptyScannerState() {
     }
 }
 
-private fun performOcrOnGallery(context: Context, uri: Uri, regex: Regex, onComplete: (List<String>) -> Unit) {
-    val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-    CoroutineScope(Dispatchers.IO).launch {
-        try {
-            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { d, _, _ -> d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE }
-            } else MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
-            recognizer.process(InputImage.fromBitmap(bitmap, 0)).addOnSuccessListener { visionText ->
-                val detected = mutableSetOf<String>()
-                visionText.textBlocks.forEach { block ->
-                    val clean = block.text.replace(Regex("[\\s\\.\\-]"), "").uppercase()
-                    regex.findAll(clean).forEach { detected.add(it.value) }
-                }
-                onComplete(detected.toList())
-            }
-        } catch (e: Exception) { onComplete(emptyList()) }
-    }
-}
-
 @SuppressLint("UnsafeOptInUsageError")
-private fun generateArticleBarcode(value: String, width: Int = 600, height: Int = 240): Bitmap? {
+private fun generateBarcodeBitmap(value: String, width: Int = 700, height: Int = 220): Bitmap? {
     if (value.isEmpty()) return null
     return try {
         val matrix = MultiFormatWriter().encode(value, BarcodeFormat.CODE_128, width, height)

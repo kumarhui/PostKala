@@ -1,20 +1,17 @@
 package cvam.dignity.postkala.features.aadhaar
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.pdf.PdfRenderer
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,36 +24,39 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreditCard
-import androidx.compose.material.icons.filled.Fingerprint
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.outlined.QrCode
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.key
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,7 +64,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -75,21 +74,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.Text
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import cvam.dignity.postkala.features.scanner.CameraScannerDialog
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 
 data class AadhaarScan(val number: String, val timestamp: Long)
 
@@ -97,17 +86,19 @@ data class AadhaarScan(val number: String, val timestamp: Long)
 @Composable
 fun AadhaarStudioScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
-
-    var aadhaarNumber by remember { mutableStateOf("") }
-    var isProcessing by remember { mutableStateOf(false) }
-    var showLiveCamera by remember { mutableStateOf(false) }
     val aadhaarRegex = remember { Regex("[0-9]{12}") }
 
-    var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var historyList by remember { mutableStateOf(getAadhaarHistory(context)) }
-    var showFullHistory by remember { mutableStateOf(false) }
+    var currentIndex by remember { mutableIntStateOf(0) }
+
+    var manualInput by remember { mutableStateOf("") }
+    var showLiveCamera by remember { mutableStateOf(false) }
+    var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    val currentDisplayNumber = if (historyList.isNotEmpty() && currentIndex < historyList.size) {
+        historyList[currentIndex].number
+    } else ""
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -116,7 +107,7 @@ fun AadhaarStudioScreen(onBack: () -> Unit) {
         else Toast.makeText(context, "Camera permission required", Toast.LENGTH_SHORT).show()
     }
 
-    // Auto launch camera on screen start
+    // Auto-launch camera
     LaunchedEffect(Unit) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             showLiveCamera = true
@@ -125,75 +116,11 @@ fun AadhaarStudioScreen(onBack: () -> Unit) {
         }
     }
 
-    BackHandler {
-        if (showLiveCamera) showLiveCamera = false else onBack()
-    }
-
-    val runRecognition = { image: InputImage ->
-        isProcessing = true
-        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(image)
-            .addOnSuccessListener { visionText ->
-                val aadhaar = findAadhaarNumber(visionText, aadhaarRegex)
-                if (aadhaar != null) {
-                    aadhaarNumber = aadhaar
-                    saveToHistory(context, aadhaar)
-                    historyList = getAadhaarHistory(context)
-                } else {
-                    Toast.makeText(context, "No valid Aadhaar found", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .addOnCompleteListener { isProcessing = false }
-    }
-
-    val pickMedia =
-        rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-            uri?.let {
-                val mimeType = context.contentResolver.getType(it)
-                if (mimeType?.startsWith("image/") == true) {
-                    runRecognition(InputImage.fromFilePath(context, it))
-                } else if (mimeType == "application/pdf") {
-                    scope.launch(Dispatchers.IO) {
-                        withContext(Dispatchers.Main) { isProcessing = true }
-                        try {
-                            val pfd = context.contentResolver.openFileDescriptor(it, "r")!!
-                            val renderer = PdfRenderer(pfd)
-                            val page = renderer.openPage(0)
-                            val bitmap = Bitmap.createBitmap(
-                                page.width,
-                                page.height,
-                                Bitmap.Config.ARGB_8888
-                            )
-                            page.render(
-                                bitmap,
-                                null,
-                                null,
-                                PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
-                            )
-                            page.close()
-                            renderer.close()
-                            withContext(Dispatchers.Main) {
-                                runRecognition(
-                                    InputImage.fromBitmap(
-                                        bitmap,
-                                        0
-                                    )
-                                )
-                            }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        } finally {
-                            withContext(Dispatchers.Main) { isProcessing = false }
-                        }
-                    }
-                }
-            }
-        }
-
-    LaunchedEffect(aadhaarNumber) {
-        if (aadhaarNumber.length == 12) {
+    // Live update QR Code for the currently viewed item
+    LaunchedEffect(currentDisplayNumber) {
+        if (currentDisplayNumber.length == 12) {
             qrBitmap = withContext(Dispatchers.Default) {
-                val xml =
-                    "<?xml version=\"1.0\" encoding=\"UTF-8\"?><PrintLetterBarcodeData uid=\"$aadhaarNumber\"/>"
+                val xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><PrintLetterBarcodeData uid=\"$currentDisplayNumber\"/>"
                 generateAadhaarQrCode(xml)
             }
         } else {
@@ -201,158 +128,134 @@ fun AadhaarStudioScreen(onBack: () -> Unit) {
         }
     }
 
+    BackHandler {
+        if (showLiveCamera) showLiveCamera = false else onBack()
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("AADHAAR STUDIO", fontWeight = FontWeight.Black) },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        if (showLiveCamera) showLiveCamera = false else onBack()
-                    }) {
-                        Icon(
-                            if (showLiveCamera) Icons.Default.Close else Icons.Default.ArrowBack,
-                            null
-                        )
+                    IconButton(onClick = { if (showLiveCamera) showLiveCamera = false else onBack() }) {
+                        Icon(if (showLiveCamera) Icons.Default.Close else Icons.Default.ArrowBack, null)
                     }
                 }
             )
         }
     ) { innerPadding ->
         Box(Modifier.padding(innerPadding).fillMaxSize()) {
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(24.dp)
+                    .padding(16.dp)
             ) {
-                if (isProcessing) LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth().clip(CircleShape)
+
+                // Fallback Scan Button
+                Button(
+                    onClick = {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                            showLiveCamera = true
+                        } else {
+                            permissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("SCAN AADHAAR", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+
+                Spacer(Modifier.height(24.dp))
+
+                // Manual Entry Component
+                Text(
+                    "MANUAL ENTRY",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Black,
+                    color = Color.Gray
+                )
+                Spacer(Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = manualInput,
+                    onValueChange = {
+                        val clean = it.filter { char -> char.isDigit() }
+                        if (clean.length <= 12) manualInput = clean
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Type 12-digit UID...", color = Color.LightGray) },
+                    leadingIcon = {
+                        Icon(Icons.Outlined.QrCode, null, tint = MaterialTheme.colorScheme.primary)
+                    },
+                    shape = RoundedCornerShape(20.dp),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
 
-                // Rendered without animations
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(28.dp),
-                    shadowElevation = 8.dp
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(
-                                        Color(0xFF4A4AFF),
-                                        Color(0xFF6C63FF)
-                                    )
-                                )
-                            )
-                            .padding(24.dp)
+                AnimatedVisibility(visible = manualInput.length == 12) {
+                    Button(
+                        onClick = {
+                            saveToHistory(context, manualInput)
+                            historyList = getAadhaarHistory(context)
+                            currentIndex = 0
+                            manualInput = ""
+                            Toast.makeText(context, "Added to batch", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.CreditCard,
-                                null,
-                                tint = Color.White.copy(alpha = 0.8f)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                "UIDAI Digital Identity",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(Modifier.height(32.dp))
-                        PostKalaAadhaarInput(value = aadhaarNumber, onValueChange = {
-                            if (it.length <= 12) {
-                                aadhaarNumber = it
-                                if (it.length == 12) {
-                                    saveToHistory(context, it)
-                                    historyList = getAadhaarHistory(context)
-                                }
-                            }
-                        }, onCopy = {
-                            clipboard.setText(AnnotatedString(aadhaarNumber))
-                            Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT)
-                                .show()
-                        })
+                        Text("SAVE TO BATCH")
                     }
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        AadhaarActionCard(
-                            "Live Cam",
-                            Icons.Default.PhotoCamera,
-                            Color(0xFFE3F2FD),
-                            Color(0xFF0D47A1)
-                        ) {
-                            if (ContextCompat.checkSelfPermission(
-                                    context,
-                                    Manifest.permission.CAMERA
-                                ) == PackageManager.PERMISSION_GRANTED
-                            ) {
-                                showLiveCamera = true
-                            } else {
-                                permissionLauncher.launch(Manifest.permission.CAMERA)
-                            }
-                        }
-                    }
+                Spacer(Modifier.height(24.dp))
 
-                    Box(modifier = Modifier.weight(1f)) {
-                        AadhaarActionCard(
-                            "Gallery",
-                            Icons.Default.Image,
-                            Color(0xFFFFF3E0),
-                            Color(0xFFE65100)
-                        ) {
-                            pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
-                        }
-                    }
-                }
-
-                if (qrBitmap != null) {
-                    qrBitmap?.let { ModernQrDisplay(it, aadhaarNumber) }
-                }
-
+                // Batch Result Viewer
                 if (historyList.isNotEmpty()) {
-                    Column(
-                        Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "RECENT SCANS",
-                                fontWeight = FontWeight.Black,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                            if (historyList.size > 4) {
-                                TextButton(onClick = { showFullHistory = !showFullHistory }) {
-                                    Text(if (showFullHistory) "Show Less" else "View All")
-                                }
-                            }
-                        }
+                    Text(
+                        "CURRENT BATCH",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Black,
+                        color = Color.Gray
+                    )
+                    Spacer(Modifier.height(8.dp))
 
-                        val displayList = if (showFullHistory) historyList else historyList.take(4)
-                        displayList.forEach { scan ->
-                            key(scan.timestamp) {
-                                AadhaarHistoryItem(scan) { aadhaarNumber = scan.number }
-                            }
+                    AadhaarBatchResultViewer(
+                        results = historyList,
+                        currentIndex = currentIndex,
+                        qrBitmap = qrBitmap,
+                        onNext = { if (currentIndex < historyList.size - 1) currentIndex++ },
+                        onPrev = { if (currentIndex > 0) currentIndex-- },
+                        onDelete = {
+                            val code = historyList[currentIndex].number
+                            deleteFromHistory(context, code)
+                            historyList = getAadhaarHistory(context)
+                            if (currentIndex >= historyList.size && historyList.isNotEmpty()) currentIndex--
+                        },
+                        onCodeChange = { newCode ->
+                            val mutableList = historyList.toMutableList()
+                            mutableList[currentIndex] = AadhaarScan(newCode, historyList[currentIndex].timestamp)
+                            historyList = mutableList
+
+                            val prefs = context.getSharedPreferences("postkala_aadhaar", Context.MODE_PRIVATE)
+                            prefs.edit().putString("scans", mutableList.joinToString(";") { "${it.number}|${it.timestamp}" }).apply()
+                        },
+                        onCopy = {
+                            clipboard.setText(AnnotatedString(currentDisplayNumber))
+                            Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
                         }
-                    }
+                    )
+                } else {
+                    EmptyScannerState("No Aadhaar Scanned")
                 }
+
                 Spacer(Modifier.height(40.dp))
             }
 
-            // Using unified shared dialog component
             if (showLiveCamera) {
                 CameraScannerDialog(
                     patterns = listOf(aadhaarRegex),
@@ -360,14 +263,87 @@ fun AadhaarStudioScreen(onBack: () -> Unit) {
                     onDetected = { codes ->
                         val detected = codes.firstOrNull()
                         if (detected != null) {
-                            aadhaarNumber = detected
                             saveToHistory(context, detected)
                             historyList = getAadhaarHistory(context)
+                            currentIndex = 0
                             showLiveCamera = false
                         }
                     },
                     onDismiss = { showLiveCamera = false }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun AadhaarBatchResultViewer(
+    results: List<AadhaarScan>,
+    currentIndex: Int,
+    qrBitmap: Bitmap?,
+    onNext: () -> Unit,
+    onPrev: () -> Unit,
+    onDelete: () -> Unit,
+    onCodeChange: (String) -> Unit,
+    onCopy: () -> Unit
+) {
+    val item = results[currentIndex]
+
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("${currentIndex + 1} / ${results.size}", fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(16.dp))
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            shadowElevation = 8.dp
+        ) {
+            Box {
+                Column(
+                    modifier = Modifier
+                        .background(Brush.verticalGradient(listOf(Color(0xFF4A4AFF), Color(0xFF6C63FF))))
+                        .padding(24.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.CreditCard, null, tint = Color.White.copy(alpha = 0.8f))
+                        Spacer(Modifier.width(12.dp))
+                        Text("UIDAI Digital Identity", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(24.dp))
+
+                    PostKalaAadhaarInput(
+                        value = item.number,
+                        onValueChange = {
+                            val clean = it.filter { char -> char.isDigit() }
+                            if (clean.length <= 12) onCodeChange(clean)
+                        },
+                        onCopy = onCopy
+                    )
+                }
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+                ) {
+                    Icon(Icons.Default.Delete, null, tint = Color.White)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        if (qrBitmap != null) {
+            ModernQrDisplay(qrBitmap, item.number)
+        }
+
+        Row(
+            modifier = Modifier.padding(top = 24.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Button(onClick = onPrev, enabled = currentIndex > 0, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Default.ChevronLeft, null)
+            }
+            Button(onClick = onNext, enabled = currentIndex < results.size - 1, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Default.ChevronRight, null)
             }
         }
     }
@@ -390,7 +366,8 @@ fun PostKalaAadhaarInput(value: String, onValueChange: (String) -> Unit, onCopy:
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BasicTextField(
-                value = value, onValueChange = onValueChange,
+                value = value,
+                onValueChange = onValueChange,
                 textStyle = TextStyle(
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
@@ -402,23 +379,41 @@ fun PostKalaAadhaarInput(value: String, onValueChange: (String) -> Unit, onCopy:
             )
             if (value.length == 12) {
                 IconButton(onClick = onCopy) {
-                    Icon(
-                        Icons.Default.ContentCopy,
-                        null,
-                        tint = Color.White
-                    )
+                    Icon(Icons.Default.ContentCopy, null, tint = Color.White)
                 }
             }
         }
     }
 }
 
-private fun findAadhaarNumber(visionText: Text, regex: Regex): String? {
-    for (block in visionText.textBlocks) {
-        val clean = block.text.replace("\\s".toRegex(), "")
-        if (regex.containsMatchIn(clean)) return regex.find(clean)?.value
+@Composable
+fun ModernQrDisplay(bitmap: Bitmap, uid: String) {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.size(200.dp)
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(uid.chunked(4).joinToString(" "), fontWeight = FontWeight.Black, fontSize = 20.sp)
+        }
     }
-    return null
+}
+
+@Composable
+fun EmptyScannerState(message: String) {
+    Column(
+        Modifier.fillMaxWidth().padding(top = 60.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.QrCodeScanner, null, Modifier.size(80.dp), Color.LightGray)
+        Spacer(Modifier.height(16.dp))
+        Text(message, fontWeight = FontWeight.Bold, color = Color.Gray)
+    }
 }
 
 private fun getAadhaarHistory(context: Context): List<AadhaarScan> {
@@ -441,6 +436,14 @@ private fun saveToHistory(context: Context, number: String) {
     prefs.edit().putString("scans", list.take(100).joinToString(";")).apply()
 }
 
+private fun deleteFromHistory(context: Context, number: String) {
+    val prefs = context.getSharedPreferences("postkala_aadhaar", Context.MODE_PRIVATE)
+    val historyStr = prefs.getString("scans", "") ?: ""
+    val list = historyStr.split(";").toMutableList()
+    list.removeAll { it.startsWith(number) }
+    prefs.edit().putString("scans", list.joinToString(";")).apply()
+}
+
 private fun generateAadhaarQrCode(text: String): Bitmap? {
     return try {
         val bitMatrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, 512, 512)
@@ -450,64 +453,4 @@ private fun generateAadhaarQrCode(text: String): Bitmap? {
         }
         bmp
     } catch (e: Exception) { null }
-}
-
-@Composable
-fun AadhaarActionCard(title: String, icon: ImageVector, bgColor: Color, tint: Color, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.height(110.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(24.dp),
-        color = bgColor
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(icon, null, tint = tint, modifier = Modifier.size(28.dp))
-            Spacer(Modifier.height(8.dp))
-            Text(title, fontWeight = FontWeight.Bold, color = tint)
-        }
-    }
-}
-
-@Composable
-fun AadhaarHistoryItem(scan: AadhaarScan, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Fingerprint, null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(16.dp))
-            Column {
-                Text(scan.number.chunked(4).joinToString(" "), fontWeight = FontWeight.Bold)
-                Text(
-                    SimpleDateFormat(
-                        "dd MMM, hh:mm a",
-                        Locale.getDefault()
-                    ).format(Date(scan.timestamp)), style = MaterialTheme.typography.labelSmall
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun ModernQrDisplay(bitmap: Bitmap, uid: String) {
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Image(
-                bitmap = bitmap.asImageBitmap(),
-                contentDescription = null,
-                modifier = Modifier.size(200.dp)
-            )
-            Spacer(Modifier.height(16.dp))
-            Text(uid.chunked(4).joinToString(" "), fontWeight = FontWeight.Black, fontSize = 20.sp)
-        }
-    }
 }
