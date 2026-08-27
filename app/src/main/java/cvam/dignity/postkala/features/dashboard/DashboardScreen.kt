@@ -38,23 +38,16 @@ private data class DashboardItem(
 fun PostKalaDashboard(
     onNavigate: (String) -> Unit
 ) {
-    var showAadhaarServices = remember { androidx.compose.runtime.mutableStateOf(false) }
-    val context = LocalContext.current
+    val showAadhaarServices = remember { androidx.compose.runtime.mutableStateOf(false) }
 
+    // Consolidated Dashboard items
     val items = listOf(
         DashboardItem(
-            title = "Aadhaar",
-            subtitle = "Studio",
-            icon = Icons.Default.Fingerprint,
-            color = Color(0xFF6366F1),
-            route = "aadhaar"
-        ),
-        DashboardItem(
-            title = "Article",
+            title = "Studio",
             subtitle = "Scanner",
             icon = Icons.Default.QrCodeScanner,
-            color = Color(0xFF10B981),
-            route = "article"
+            color = Color(0xFF6366F1),
+            route = "studio_scanner"
         ),
         DashboardItem(
             title = "RPLI",
@@ -62,13 +55,6 @@ fun PostKalaDashboard(
             icon = Icons.Default.Calculate,
             color = Color(0xFFF59E0B),
             route = "rpli"
-        ),
-        DashboardItem(
-            title = "OCR",
-            subtitle = "Barcode",
-            icon = Icons.Default.DocumentScanner,
-            color = Color(0xFF8B5CF6),
-            route = "ocr_barcode"
         ),
         DashboardItem(
             title = "Aadhaar",
@@ -137,14 +123,10 @@ fun PostKalaDashboard(
             ) {
 
                 items(items) { item ->
-
                     CircularDashboardItem(
                         item = item,
                         onClick = {
-                            item.route?.let {
-                                onNavigate(it)
-                            }
-
+                            item.route?.let { onNavigate(it) }
                             item.action?.invoke()
                         }
                     )
@@ -155,9 +137,7 @@ fun PostKalaDashboard(
 
     if (showAadhaarServices.value) {
         AadhaarServicesDialog(
-            onDismiss = {
-                showAadhaarServices.value = false
-            }
+            onDismiss = { showAadhaarServices.value = false }
         )
     }
 }
@@ -173,7 +153,6 @@ private fun CircularDashboardItem(
             .clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
         Box(
             modifier = Modifier
                 .size(72.dp)
@@ -183,7 +162,6 @@ private fun CircularDashboardItem(
                 ),
             contentAlignment = Alignment.Center
         ) {
-
             Box(
                 modifier = Modifier
                     .size(54.dp)
@@ -225,26 +203,10 @@ private fun AadhaarServicesDialog(
     val context = LocalContext.current
 
     val services = listOf(
-        Triple(
-            "Validity",
-            Icons.Default.CheckCircle,
-            "https://myaadhaar.uidai.gov.in/check-aadhaar-validity/en"
-        ),
-        Triple(
-            "Download",
-            Icons.Default.AccountBox,
-            "https://myaadhaar.uidai.gov.in/genricDownloadAadhaar"
-        ),
-        Triple(
-            "Status",
-            Icons.Default.Search,
-            "https://myaadhaar.uidai.gov.in/CheckAadhaarStatus/en"
-        ),
-        Triple(
-            "Portal",
-            Icons.Default.Home,
-            "https://myaadhaar.uidai.gov.in/"
-        )
+        Triple("Validity", Icons.Default.CheckCircle, "https://myaadhaar.uidai.gov.in/check-aadhaar-validity/en"),
+        Triple("Download", Icons.Default.AccountBox, "https://myaadhaar.uidai.gov.in/genricDownloadAadhaar"),
+        Triple("Status", Icons.Default.Search, "https://myaadhaar.uidai.gov.in/CheckAadhaarStatus/en"),
+        Triple("Portal", Icons.Default.Home, "https://myaadhaar.uidai.gov.in/")
     )
 
     AlertDialog(
@@ -256,38 +218,16 @@ private fun AadhaarServicesDialog(
             )
         },
         text = {
-
-            Column(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-
-                    AadhaarServiceIcon(
-                        title = services[0].first,
-                        icon = services[0].second
-                    ) {
-                        context.startActivity(
-                            Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse(services[0].third)
-                            )
-                        )
+                    AadhaarServiceIcon(title = services[0].first, icon = services[0].second) {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(services[0].third)))
                     }
-
-                    AadhaarServiceIcon(
-                        title = services[1].first,
-                        icon = services[1].second
-                    ) {
-                        context.startActivity(
-                            Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse(services[1].third)
-                            )
-                        )
+                    AadhaarServiceIcon(title = services[1].first, icon = services[1].second) {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(services[1].third)))
                     }
                 }
 
@@ -297,29 +237,11 @@ private fun AadhaarServicesDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-
-                    AadhaarServiceIcon(
-                        title = services[2].first,
-                        icon = services[2].second
-                    ) {
-                        context.startActivity(
-                            Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse(services[2].third)
-                            )
-                        )
+                    AadhaarServiceIcon(title = services[2].first, icon = services[2].second) {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(services[2].third)))
                     }
-
-                    AadhaarServiceIcon(
-                        title = services[3].first,
-                        icon = services[3].second
-                    ) {
-                        context.startActivity(
-                            Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse(services[3].third)
-                            )
-                        )
+                    AadhaarServiceIcon(title = services[3].first, icon = services[3].second) {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(services[3].third)))
                     }
                 }
             }
@@ -340,18 +262,13 @@ private fun AadhaarServiceIcon(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .width(85.dp)
-            .clickable(onClick = onClick)
+        modifier = Modifier.width(85.dp).clickable(onClick = onClick)
     ) {
-
         Box(
-            modifier = Modifier
-                .size(58.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = CircleShape
-                ),
+            modifier = Modifier.size(58.dp).background(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = CircleShape
+            ),
             contentAlignment = Alignment.Center
         ) {
             Icon(

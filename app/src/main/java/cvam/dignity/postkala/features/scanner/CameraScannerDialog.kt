@@ -1,6 +1,5 @@
 package cvam.dignity.postkala.features.scanner
 
-import android.annotation.SuppressLint
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
@@ -61,7 +60,7 @@ import java.util.concurrent.Executors
 fun CameraScannerDialog(
     patterns: List<Regex>,
     title: String = "Scan",
-    onDetected: (List<String>) -> Unit,
+    onDetected: (codes: List<String>) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -177,6 +176,7 @@ fun CameraScannerDialog(
                         )
                     }
                 }
+
                 Spacer(Modifier.height(14.dp))
 
                 Row(
@@ -234,7 +234,7 @@ private fun analyzeImage(
     imageProxy: ImageProxy,
     recognizer: TextRecognizer,
     patterns: List<Regex>,
-    onDetected: (List<String>) -> Unit
+    onDetected: (results: List<String>) -> Unit
 ) {
     val mediaImage = imageProxy.image
     if (mediaImage == null) {

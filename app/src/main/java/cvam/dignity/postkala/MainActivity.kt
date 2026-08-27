@@ -19,6 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.navigation.compose.NavHost
@@ -28,14 +29,11 @@ import com.google.android.gms.ads.*
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
 import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.UpdateAvailability
-import cvam.dignity.postkala.features.aadhaar.AadhaarStudioScreen
-import cvam.dignity.postkala.features.article.ArticleScannerScreen
 import cvam.dignity.postkala.features.dashboard.PostKalaDashboard
 import cvam.dignity.postkala.features.rpli.RpliCalculatorScreen
-import cvam.dignity.postkala.features.scanner.OcrBarcodeScreen
+import cvam.dignity.postkala.features.scanner.StudioScannerScreen
 import cvam.dignity.postkala.ui.theme.PostKalaTheme
 import kotlinx.coroutines.delay
-import androidx.compose.ui.unit.dp
 
 val AppEasing = CubicBezierEasing(0.0f, 0.0f, 0.2f, 1.0f)
 
@@ -48,9 +46,7 @@ class MainActivity : ComponentActivity() {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
 
-        // Check for in-app updates immediately on launch
         checkForInAppUpdates()
-
         MobileAds.initialize(this) {}
         enableEdgeToEdge()
 
@@ -88,16 +84,9 @@ class MainActivity : ComponentActivity() {
                                 PostKalaDashboard(onNavigate = { route -> navController.navigate(route) })
                             }
 
-                            composable("aadhaar") {
-                                AadhaarStudioScreen(onBack = { navController.popBackStack() })
-                            }
-
-                            composable("ocr_barcode") {
-                                OcrBarcodeScreen(onBack = { navController.popBackStack() })
-                            }
-
-                            composable("article") {
-                                ArticleScannerScreen(onBack = { navController.popBackStack() })
+                            // Single unified scanner route
+                            composable("studio_scanner") {
+                                StudioScannerScreen(onBack = { navController.popBackStack() })
                             }
 
                             composable("rpli") {
