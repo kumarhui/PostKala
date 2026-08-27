@@ -1,0 +1,32 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="288"
+    android:viewportHeight="288">
+
+    <!-- Subtle Outer Glow/Halo for depth -->
+    <path
+        android:pathData="M144,144m-70,0a70,70 0,1 1,140 0a70,70 0,1 1,-140 0"
+        android:fillColor="#15FFFFFF"/>
+
+    <!-- Clean Stylized Mail Icon -->
+    <!-- Positioned centrally for a balanced look without text -->
+    <path
+        android:pathData="M100,120 H188 V168 C188,170.2 186.2,172 184,172 H104 C101.8,172 100,170.2 100,168 V120Z"
+        android:fillColor="#FFFFFF"/>
+
+    <!-- Envelope Fold with high contrast -->
+    <path
+        android:pathData="M100,120 L144,150 L188,120"
+        android:strokeColor="#6366F1"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+
+    <!-- Accent dot representing the 'Post' notification -->
+    <path
+        android:pathData="M182,120m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0"
+        android:fillColor="#FFD700"
+        android:fillAlpha="0.9"/>
+
+</vector>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      ENHANCED SYSTEM SPLASH
+      Matches the look of the removed custom splash by using the brand's primary
+      solid color and a specialized branding drawable with typography.
+    -->
+    <style name="Theme.PostKala.Starting" parent="Theme.SplashScreen">
+        <!-- The top color of your brand gradient -->
+        <item name="windowSplashScreenBackground">#6366F1</item>
+
+        <!-- Replaces the circular app icon with our custom brand-mark -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_branding</item>
+
+        <!-- Ensures smooth handoff to the real app theme -->
+        <item name="postSplashScreenTheme">@style/Theme.PostKala</item>
+
+        <!-- Status bar and Navigation bar styling for the splash phase -->
+        <item name="android:windowLightStatusBar" tools:targetApi="23">false</item>
+        <item name="android:navigationBarColor">#6366F1</item>
+    </style>
+</resources>
