@@ -29,7 +29,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -37,17 +36,21 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -102,20 +105,18 @@ fun StudioScannerScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Regex patterns for automatic code detection
     val aadhaarRegex = remember { Regex("""[0-9]{12}""") }
     val articleRegex = remember { Regex("""[A-Z]{2}[0-9]{9}[A-Z]{2}""") }
     val boxRegex = remember { Regex("""BOX[0-9]{10}""") }
 
-    // Scan history batch & cache
     val scanHistory = remember { mutableStateListOf<UnifiedScanResult>() }
     val codeImageCache = remember { mutableStateMapOf<String, Bitmap>() }
 
     var currentIndex by remember { mutableIntStateOf(0) }
     var showCamera by remember { mutableStateOf(false) }
-    var scanningEnabled by remember { mutableStateOf(true) }
+    var scanningEnabled by remember { mutableStateOf(false) }
 
-    // Ensure at least one blank entry exists on start for direct typing
+    // Initial blank entry for direct typing
     LaunchedEffect(Unit) {
         if (scanHistory.isEmpty()) {
             scanHistory.add(UnifiedScanResult(code = "", type = ScannedCodeType.ARTICLE_BARCODE))
@@ -129,11 +130,10 @@ fun StudioScannerScreen(onBack: () -> Unit) {
             scanningEnabled = true
             showCamera = true
         } else {
-            Toast.makeText(context, "Camera permission is required for scanning", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Camera permission required to scan", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // Function to handle newly scanned or typed codes
     val processAndAddCodes: (List<String>) -> Unit = { rawCodes ->
         if (scanningEnabled) {
             scope.launch {
@@ -146,7 +146,6 @@ fun StudioScannerScreen(onBack: () -> Unit) {
                             ScannedCodeType.ARTICLE_BARCODE
                         }
 
-                        // Replace existing blank item if present, else append new
                         val emptyIndex = scanHistory.indexOfFirst { it.code.isEmpty() }
                         if (emptyIndex != -1) {
                             scanHistory[emptyIndex] = UnifiedScanResult(code = clean, type = detectedType)
@@ -166,26 +165,31 @@ fun StudioScannerScreen(onBack: () -> Unit) {
         }
     }
 
-    // Auto-launch camera when screen opens
-    LaunchedEffect(Unit) {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            scanningEnabled = true
-            showCamera = true
-        } else {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
-        }
-    }
-
     Scaffold(
-        modifier = Modifier.fillMaxSize().statusBarsPadding(),
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding(),
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("STUDIO SCANNER", fontWeight = FontWeight.Black, letterSpacing = 1.sp) },
+                title = {
+                    Text(
+                        "STUDIO SCANNER",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 18.sp,
+                        letterSpacing = 1.sp
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { if (showCamera) showCamera = false else onBack() }) {
-                        Icon(if (showCamera) Icons.Default.Close else Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            if (showCamera) Icons.Default.Close else Icons.Default.ArrowBack,
+                            contentDescription = "Back"
+                        )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
         }
     ) { padding ->
@@ -194,11 +198,10 @@ fun StudioScannerScreen(onBack: () -> Unit) {
             Column(
                 Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Primary Action Button
                 Button(
                     onClick = {
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
@@ -208,17 +211,21 @@ fun StudioScannerScreen(onBack: () -> Unit) {
                             permissionLauncher.launch(Manifest.permission.CAMERA)
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().height(54.dp),
-                    shape = RoundedCornerShape(16.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
                 ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null)
+                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("SCAN CODE / UID", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("SCAN CODE", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(16.dp))
 
-                // Unified Interactive Card Component
                 if (scanHistory.isNotEmpty() && currentIndex in scanHistory.indices) {
                     val currentItem = scanHistory[currentIndex]
 
@@ -259,7 +266,6 @@ fun StudioScannerScreen(onBack: () -> Unit) {
                                     currentIndex = scanHistory.size - 1
                                 }
                             } else {
-                                // Clear sole item
                                 val targetCode = scanHistory[0].code
                                 scanHistory[0] = UnifiedScanResult(code = "", type = ScannedCodeType.ARTICLE_BARCODE)
                                 codeImageCache.remove(targetCode)
@@ -267,55 +273,58 @@ fun StudioScannerScreen(onBack: () -> Unit) {
                         }
                     )
 
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(14.dp))
 
-                    // Batch Navigation Controls (Icon-only PREV/NEXT)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(
                             onClick = { if (currentIndex > 0) currentIndex-- },
                             enabled = currentIndex > 0,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(14.dp)
+                            modifier = Modifier.weight(1f).height(46.dp),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(Icons.Default.ChevronLeft, contentDescription = "Previous")
                         }
 
+                        // Clear All Button replacing the + button
                         OutlinedButton(
                             onClick = {
-                                if (scanHistory.isEmpty() || scanHistory.last().code.isNotEmpty()) {
-                                    scanHistory.add(UnifiedScanResult(code = "", type = ScannedCodeType.ARTICLE_BARCODE))
-                                }
-                                currentIndex = scanHistory.size - 1
+                                scanHistory.clear()
+                                codeImageCache.clear()
+                                scanHistory.add(UnifiedScanResult(code = "", type = ScannedCodeType.ARTICLE_BARCODE))
+                                currentIndex = 0
+                                Toast.makeText(context, "Batch cleared", Toast.LENGTH_SHORT).show()
                             },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(14.dp)
+                            modifier = Modifier.weight(1f).height(46.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFFEF4444)
+                            )
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "Add New")
+                            Icon(Icons.Default.DeleteSweep, contentDescription = "Clear All", tint = Color(0xFFEF4444))
                         }
 
                         OutlinedButton(
                             onClick = { if (currentIndex < scanHistory.size - 1) currentIndex++ },
                             enabled = currentIndex < scanHistory.size - 1,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(14.dp)
+                            modifier = Modifier.weight(1f).height(46.dp),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(Icons.Default.ChevronRight, contentDescription = "Next")
                         }
                     }
                 }
 
-                Spacer(Modifier.height(30.dp))
+                Spacer(Modifier.height(20.dp))
             }
 
-            // Shared Camera Scanner Modal
             if (showCamera) {
                 CameraScannerDialog(
                     patterns = listOf(aadhaarRegex, articleRegex, boxRegex),
-                    title = "Scan Aadhaar or Article",
+                    title = "Scan Code",
                     onDetected = { codes: List<String> ->
                         processAndAddCodes(codes)
                     },
@@ -343,20 +352,20 @@ fun UnifiedCodeCard(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        shadowElevation = 6.dp
+        shape = RoundedCornerShape(22.dp),
+        shadowElevation = 4.dp
     ) {
         Column(
             modifier = Modifier
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFF4F46E5), // Indigo
-                            Color(0xFF7C3AED)  // Purple
+                            Color(0xFF4338CA), // Modern Indigo
+                            Color(0xFF6D28D9)  // Deep Violet
                         )
                     )
                 )
-                .padding(20.dp),
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Header Row
@@ -370,14 +379,14 @@ fun UnifiedCodeCard(
                         Icons.Default.QrCodeScanner,
                         contentDescription = null,
                         tint = Color.White.copy(alpha = 0.9f),
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(20.dp)
                     )
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "POSTKALA DIGITAL CODE",
+                        text = "DIGITAL CODE",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
+                        fontSize = 14.sp,
                         letterSpacing = 0.5.sp
                     )
                 }
@@ -387,44 +396,44 @@ fun UnifiedCodeCard(
                         text = "${currentIndex + 1} / $totalItems",
                         color = Color.White.copy(alpha = 0.8f),
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+                        fontSize = 12.sp
                     )
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(4.dp))
                     IconButton(
                         onClick = onDelete,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(30.dp)
                     ) {
                         Icon(
                             Icons.Default.Delete,
                             contentDescription = "Delete",
-                            tint = Color.White.copy(alpha = 0.85f),
-                            modifier = Modifier.size(20.dp)
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(14.dp))
 
-            // Interactive Editable Code Field inside the Card
+            // Editable Code Input
             EditableCodeInputField(
                 value = item.code,
                 onValueChange = onCodeChange,
                 onCopy = {
                     if (item.code.isNotEmpty()) {
                         clipboard.setText(AnnotatedString(item.code))
-                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
                     }
                 }
             )
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // Code Format Pill Indicator
+            // Code Type Badge
             val badgeText = if (item.type == ScannedCodeType.AADHAAR_UID) {
-                "12-DIGIT UID (QR CODE)"
+                "12-DIGIT UID"
             } else {
-                "ARTICLE CODE (BARCODE)"
+                "ARTICLE BARCODE"
             }
 
             Surface(
@@ -434,53 +443,59 @@ fun UnifiedCodeCard(
                 Text(
                     text = badgeText,
                     color = Color.White,
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp)
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                 )
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(14.dp))
 
-            // Perfect Centered Visual Preview (QR Code or Barcode)
+            // Fixed height box (210.dp) so Aadhaar QR & Article Barcode render with identical card height
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
+                    .height(210.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(Color.White)
-                    .padding(vertical = 20.dp, horizontal = 16.dp),
+                    .padding(14.dp),
                 contentAlignment = Alignment.Center
             ) {
                 if (cachedBitmap != null && item.code.isNotEmpty()) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        if (item.type == ScannedCodeType.AADHAAR_UID) {
-                            // Centered QR Display
-                            Image(
-                                bitmap = cachedBitmap.asImageBitmap(),
-                                contentDescription = "Aadhaar QR Code",
-                                modifier = Modifier.size(190.dp),
-                                contentScale = ContentScale.Fit,
-                                alignment = Alignment.Center
-                            )
-                        } else {
-                            // Centered Barcode Display
-                            Image(
-                                bitmap = cachedBitmap.asImageBitmap(),
-                                contentDescription = "Article Barcode",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(115.dp)
-                                    .padding(horizontal = 8.dp),
-                                contentScale = ContentScale.Fit,
-                                alignment = Alignment.Center
-                            )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(140.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (item.type == ScannedCodeType.AADHAAR_UID) {
+                                Image(
+                                    bitmap = cachedBitmap.asImageBitmap(),
+                                    contentDescription = "QR Code",
+                                    modifier = Modifier.size(135.dp),
+                                    contentScale = ContentScale.Fit,
+                                    alignment = Alignment.Center
+                                )
+                            } else {
+                                Image(
+                                    bitmap = cachedBitmap.asImageBitmap(),
+                                    contentDescription = "Barcode",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(85.dp)
+                                        .padding(horizontal = 4.dp),
+                                    contentScale = ContentScale.Fit,
+                                    alignment = Alignment.Center
+                                )
+                            }
                         }
 
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(8.dp))
 
                         val formattedDisplay = if (item.type == ScannedCodeType.AADHAAR_UID) {
                             item.code.chunked(4).joinToString(" ")
@@ -491,31 +506,29 @@ fun UnifiedCodeCard(
                         Text(
                             text = formattedDisplay,
                             fontWeight = FontWeight.Black,
-                            fontSize = 18.sp,
+                            fontSize = 15.sp,
                             fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF1E293B),
+                            color = Color(0xFF0F172A),
                             textAlign = TextAlign.Center
                         )
                     }
                 } else {
-                    // Empty state inside the preview card
+                    // Empty state preview with exact same fixed height
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp)
+                        modifier = Modifier.fillMaxSize()
                     ) {
                         Icon(
                             Icons.Default.QrCode,
                             contentDescription = null,
-                            modifier = Modifier.size(52.dp),
+                            modifier = Modifier.size(40.dp),
                             tint = Color.LightGray
                         )
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(6.dp))
                         Text(
-                            text = "Type or scan to generate code",
-                            fontSize = 13.sp,
+                            text = "Scan or type to preview",
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             color = Color.Gray,
                             textAlign = TextAlign.Center
@@ -538,14 +551,14 @@ fun EditableCodeInputField(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(Color.White.copy(0.12f))
             .border(
-                width = 1.5.dp,
+                width = 1.dp,
                 color = if (isFocused) Color.White else Color.White.copy(0.3f),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(12.dp)
             )
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -560,7 +573,7 @@ fun EditableCodeInputField(
                     }
                 },
                 textStyle = TextStyle(
-                    fontSize = 20.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     fontFamily = FontFamily.Monospace,
@@ -578,9 +591,9 @@ fun EditableCodeInputField(
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (value.isEmpty()) {
                             Text(
-                                text = "ENTER 12-DIGIT UID OR 13-CHAR CODE...",
+                                text = "Enter UID or Article Code...",
                                 color = Color.White.copy(alpha = 0.45f),
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 fontFamily = FontFamily.Monospace
                             )
                         }
@@ -592,13 +605,13 @@ fun EditableCodeInputField(
             if (value.isNotEmpty()) {
                 IconButton(
                     onClick = onCopy,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
                         Icons.Default.ContentCopy,
-                        contentDescription = "Copy Code",
+                        contentDescription = "Copy",
                         tint = Color.White,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
