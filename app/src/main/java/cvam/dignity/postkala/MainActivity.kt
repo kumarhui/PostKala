@@ -1,4 +1,4 @@
-package cvam.dignity.postkala
+﻿package cvam.dignity.postkala
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -18,22 +18,30 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.google.android.gms.ads.*
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
 import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.UpdateAvailability
+import cvam.dignity.postkala.core.AppPreferences
 import cvam.dignity.postkala.features.dashboard.PostKalaDashboard
+import cvam.dignity.postkala.features.onboarding.OnboardingScreen
 import cvam.dignity.postkala.features.rpli.RpliCalculatorScreen
 import cvam.dignity.postkala.features.scanner.StudioScannerScreen
+import cvam.dignity.postkala.features.webview.AppWebViewScreen
 import cvam.dignity.postkala.ui.theme.PostKalaTheme
 import kotlinx.coroutines.delay
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
 val AppEasing = CubicBezierEasing(0.0f, 0.0f, 0.2f, 1.0f)
 
@@ -75,16 +83,28 @@ class MainActivity : ComponentActivity() {
                         exit = fadeOut()
                     ) {
                         val navController = rememberNavController()
+                        val context = LocalContext.current
+                        val appPrefs = remember { AppPreferences(context) }
+                        val startDestination = if (appPrefs.isOnboardingCompleted) "dashboard" else "onboarding"
 
                         NavHost(
                             navController = navController,
-                            startDestination = "dashboard"
+                            startDestination = startDestination
                         ) {
+                            composable("onboarding") {
+                                OnboardingScreen(
+                                    onFinished = {
+                                        navController.navigate("dashboard") {
+                                            popUpTo("onboarding") { inclusive = true }
+                                        }
+                                    }
+                                )
+                            }
+
                             composable("dashboard") {
                                 PostKalaDashboard(onNavigate = { route -> navController.navigate(route) })
                             }
 
-                            // Single unified scanner route
                             composable("studio_scanner") {
                                 StudioScannerScreen(onBack = { navController.popBackStack() })
                             }
@@ -105,6 +125,45 @@ class MainActivity : ComponentActivity() {
                                 ) { padding ->
                                     RpliCalculatorScreen(Modifier.padding(padding))
                                 }
+                            }
+
+                            composable(
+                                route = "webview?title={title}&url={url}",
+                                arguments = listOf(
+                                    navArgument("title") {
+                                        type = NavType.StringType
+                                        defaultValue = "Web Portal"
+                                    },
+                                    navArgument("url") {
+                                        type = NavType.StringType
+                                        defaultValue = "https://app.indiapost.gov.in/employeeportal"
+                                    }
+                                )
+                            ) { backStackEntry ->
+                                val rawTitle = backStackEntry.arguments?.getString("title") ?: "Web Portal"
+                                val rawUrl = backStackEntry.arguments?.getString("url") ?: ""
+
+                                val decodedTitle = remember(rawTitle) {
+                                    try {
+                                        URLDecoder.decode(rawTitle, StandardCharsets.UTF_8.toString())
+                                    } catch (_: Exception) {
+                                        rawTitle
+                                    }
+                                }
+
+                                val decodedUrl = remember(rawUrl) {
+                                    try {
+                                        URLDecoder.decode(rawUrl, StandardCharsets.UTF_8.toString())
+                                    } catch (_: Exception) {
+                                        rawUrl
+                                    }
+                                }
+
+                                AppWebViewScreen(
+                                    title = decodedTitle,
+                                    url = decodedUrl,
+                                    onBack = { navController.popBackStack() }
+                                )
                             }
                         }
                     }
