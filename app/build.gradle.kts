@@ -13,9 +13,9 @@ android {
     defaultConfig {
         applicationId = "cvam.dignity.postkala"
         minSdk = 26
-        targetSdk = 35 // Updated to match compileSdk for better compatibility
-        versionCode = 4
-        versionName = "1.0.4"
+        targetSdk = 36 // Updated to match compileSdk for better compatibility
+        versionCode = 5
+        versionName = "1.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

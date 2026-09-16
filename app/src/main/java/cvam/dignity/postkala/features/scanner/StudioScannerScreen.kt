@@ -1,4 +1,4 @@
-package cvam.dignity.postkala.features.scanner
+﻿package cvam.dignity.postkala.features.scanner
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -116,13 +116,6 @@ fun StudioScannerScreen(onBack: () -> Unit) {
     var showCamera by remember { mutableStateOf(false) }
     var scanningEnabled by remember { mutableStateOf(false) }
 
-    // Initial blank entry for direct typing
-    LaunchedEffect(Unit) {
-        if (scanHistory.isEmpty()) {
-            scanHistory.add(UnifiedScanResult(code = "", type = ScannedCodeType.ARTICLE_BARCODE))
-        }
-    }
-
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -131,6 +124,19 @@ fun StudioScannerScreen(onBack: () -> Unit) {
             showCamera = true
         } else {
             Toast.makeText(context, "Camera permission required to scan", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (scanHistory.isEmpty()) {
+            scanHistory.add(UnifiedScanResult(code = "", type = ScannedCodeType.ARTICLE_BARCODE))
+        }
+
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            scanningEnabled = true
+            showCamera = true
+        } else {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
@@ -149,10 +155,8 @@ fun StudioScannerScreen(onBack: () -> Unit) {
                         val emptyIndex = scanHistory.indexOfFirst { it.code.isEmpty() }
                         if (emptyIndex != -1) {
                             scanHistory[emptyIndex] = UnifiedScanResult(code = clean, type = detectedType)
-                            currentIndex = emptyIndex
                         } else if (scanHistory.none { it.code == clean }) {
                             scanHistory.add(UnifiedScanResult(code = clean, type = detectedType))
-                            currentIndex = scanHistory.size - 1
                         }
 
                         withContext(Dispatchers.Default) {
@@ -161,6 +165,8 @@ fun StudioScannerScreen(onBack: () -> Unit) {
                         }
                     }
                 }
+                // Always display starting from the 1st result
+                currentIndex = 0
             }
         }
     }
@@ -289,7 +295,6 @@ fun StudioScannerScreen(onBack: () -> Unit) {
                             Icon(Icons.Default.ChevronLeft, contentDescription = "Previous")
                         }
 
-                        // Clear All Button replacing the + button
                         OutlinedButton(
                             onClick = {
                                 scanHistory.clear()
@@ -322,9 +327,9 @@ fun StudioScannerScreen(onBack: () -> Unit) {
             }
 
             if (showCamera) {
-                CameraScannerDialog(
+                TimedCaptureScannerDialog(
                     patterns = listOf(aadhaarRegex, articleRegex, boxRegex),
-                    title = "Scan Code",
+                    title = "Fast Scan",
                     onDetected = { codes: List<String> ->
                         processAndAddCodes(codes)
                     },
@@ -360,15 +365,14 @@ fun UnifiedCodeCard(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFF4338CA), // Modern Indigo
-                            Color(0xFF6D28D9)  // Deep Violet
+                            Color(0xFF4338CA),
+                            Color(0xFF6D28D9)
                         )
                     )
                 )
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -415,7 +419,6 @@ fun UnifiedCodeCard(
 
             Spacer(Modifier.height(14.dp))
 
-            // Editable Code Input
             EditableCodeInputField(
                 value = item.code,
                 onValueChange = onCodeChange,
@@ -429,7 +432,6 @@ fun UnifiedCodeCard(
 
             Spacer(Modifier.height(12.dp))
 
-            // Code Type Badge
             val badgeText = if (item.type == ScannedCodeType.AADHAAR_UID) {
                 "12-DIGIT UID"
             } else {
@@ -451,7 +453,6 @@ fun UnifiedCodeCard(
 
             Spacer(Modifier.height(14.dp))
 
-            // Fixed height box (210.dp) so Aadhaar QR & Article Barcode render with identical card height
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -513,7 +514,6 @@ fun UnifiedCodeCard(
                         )
                     }
                 } else {
-                    // Empty state preview with exact same fixed height
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
