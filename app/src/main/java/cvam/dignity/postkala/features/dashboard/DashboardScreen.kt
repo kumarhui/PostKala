@@ -37,6 +37,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import cvam.dignity.postkala.AdBanner
 import cvam.dignity.postkala.core.AppPreferences
+import cvam.dignity.postkala.features.rpli.RpliCalculatorDialog
 import cvam.dignity.postkala.features.scanner.StudioScannerDialog
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
@@ -68,6 +69,7 @@ fun PostKalaDashboard(
     val showAppInfo = remember { mutableStateOf(false) }
     val showWhatsappDialog = remember { mutableStateOf(false) }
     val showStudioDialog = remember { mutableStateOf(false) }
+    val showRpliDialog = remember { mutableStateOf(false) }
 
     val allItems = remember(appPrefs.isAdvancedFeaturesEnabled) {
         mutableListOf<DashboardItem>().apply {
@@ -89,7 +91,7 @@ fun PostKalaDashboard(
                     subtitle = "Calculator",
                     icon = Icons.Default.Calculate,
                     color = Color(0xFFF59E0B),
-                    route = "rpli"
+                    action = { showRpliDialog.value = true }
                 )
             )
             add(
@@ -224,7 +226,13 @@ fun PostKalaDashboard(
         }
     }
 
-        if (showStudioDialog.value) {
+            if (showRpliDialog.value) {
+        RpliCalculatorDialog(
+            onDismiss = { showRpliDialog.value = false }
+        )
+    }
+
+    if (showStudioDialog.value) {
         StudioScannerDialog(
             onDismiss = { showStudioDialog.value = false }
         )

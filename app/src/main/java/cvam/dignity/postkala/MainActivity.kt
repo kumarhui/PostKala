@@ -12,14 +12,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -35,8 +31,6 @@ import com.google.android.play.core.install.model.UpdateAvailability
 import cvam.dignity.postkala.core.AppPreferences
 import cvam.dignity.postkala.features.dashboard.PostKalaDashboard
 import cvam.dignity.postkala.features.onboarding.OnboardingScreen
-import cvam.dignity.postkala.features.rpli.RpliCalculatorScreen
-import cvam.dignity.postkala.features.scanner.StudioScannerDialog
 import cvam.dignity.postkala.features.webview.AppWebViewScreen
 import cvam.dignity.postkala.ui.theme.PostKalaTheme
 import kotlinx.coroutines.delay
@@ -103,26 +97,6 @@ class MainActivity : ComponentActivity() {
 
                             composable("dashboard") {
                                 PostKalaDashboard(onNavigate = { route -> navController.navigate(route) })
-                            }
-
-                            
-
-                            composable("rpli") {
-                                Scaffold(
-                                    topBar = {
-                                        CenterAlignedTopAppBar(
-                                            title = { Text("RPLI PREMIUM", fontWeight = FontWeight.Black) },
-                                            navigationIcon = {
-                                                IconButton(onClick = { navController.popBackStack() }) {
-                                                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                                                }
-                                            }
-                                        )
-                                    },
-                                    bottomBar = { AdBanner() }
-                                ) { padding ->
-                                    RpliCalculatorScreen(Modifier.padding(padding))
-                                }
                             }
 
                             composable(
@@ -216,7 +190,7 @@ class MainActivity : ComponentActivity() {
 fun AdBanner(modifier: Modifier = Modifier) {
     val adUnitId = try {
         AdsConfig.bannerId
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         "ca-app-pub-3940256099942544/6300978111"
     }
 
