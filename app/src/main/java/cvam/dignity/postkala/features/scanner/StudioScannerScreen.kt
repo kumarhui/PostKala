@@ -165,7 +165,6 @@ fun StudioScannerScreen(onBack: () -> Unit) {
                         }
                     }
                 }
-                // Always display starting from the 1st result
                 currentIndex = 0
             }
         }
@@ -327,9 +326,10 @@ fun StudioScannerScreen(onBack: () -> Unit) {
             }
 
             if (showCamera) {
-                TimedCaptureScannerDialog(
+                ContinuousStreamScannerDialog(
                     patterns = listOf(aadhaarRegex, articleRegex, boxRegex),
-                    title = "Fast Scan",
+                    existingCodes = scanHistory.map { it.code },
+                    title = "Continuous Scanner",
                     onDetected = { codes: List<String> ->
                         processAndAddCodes(codes)
                     },
