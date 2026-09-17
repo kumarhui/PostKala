@@ -50,6 +50,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+enum class ScannedCodeType {
+    AADHAAR_UID,
+    ARTICLE_BARCODE
+}
+
+data class UnifiedScanResult(
+    val code: String,
+    val type: ScannedCodeType,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 enum class StudioDialogMode {
     ACTION_SELECTION,
     RESULTS_VIEW,
@@ -138,6 +149,7 @@ fun StudioScannerDialog(
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Top Action Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,

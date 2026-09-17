@@ -36,7 +36,7 @@ import cvam.dignity.postkala.core.AppPreferences
 import cvam.dignity.postkala.features.dashboard.PostKalaDashboard
 import cvam.dignity.postkala.features.onboarding.OnboardingScreen
 import cvam.dignity.postkala.features.rpli.RpliCalculatorScreen
-import cvam.dignity.postkala.features.scanner.StudioScannerScreen
+import cvam.dignity.postkala.features.scanner.StudioScannerDialog
 import cvam.dignity.postkala.features.webview.AppWebViewScreen
 import cvam.dignity.postkala.ui.theme.PostKalaTheme
 import kotlinx.coroutines.delay
