@@ -105,9 +105,7 @@ class MainActivity : ComponentActivity() {
                                 PostKalaDashboard(onNavigate = { route -> navController.navigate(route) })
                             }
 
-                            composable("studio_scanner") {
-                                StudioScannerScreen(onBack = { navController.popBackStack() })
-                            }
+                            
 
                             composable("rpli") {
                                 Scaffold(

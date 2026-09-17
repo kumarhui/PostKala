@@ -49,7 +49,6 @@ fun ContinuousStreamScannerDialog(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Tracks all codes already present in current batch + newly detected in this session
     val sessionCaptured = remember {
         mutableStateListOf<String>().apply {
             addAll(existingCodes.filter { it.isNotBlank() })
@@ -61,8 +60,6 @@ fun ContinuousStreamScannerDialog(
 
     val executor = remember { Executors.newSingleThreadExecutor() }
     val recognizer = remember { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
-
-    // Map to count consecutive hits for candidate codes (anti-flicker stability filter)
     val hitCounts = remember { mutableMapOf<String, Int>() }
 
     DisposableEffect(Unit) {
@@ -81,12 +78,18 @@ fun ContinuousStreamScannerDialog(
         )
     ) {
         Surface(
-            modifier = Modifier.fillMaxWidth(0.94f),
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .wrapContentHeight()
+                .padding(vertical = 16.dp),
             shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 8.dp
         ) {
-            Column(modifier = Modifier.padding(18.dp)) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -113,7 +116,7 @@ fun ContinuousStreamScannerDialog(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(title, style = MaterialTheme.typography.titleLarge)
                         Text(
-                            text = "Stream active • Auto-deduplication ON",
+                            text = "Auto-deduplication active",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -126,134 +129,129 @@ fun ContinuousStreamScannerDialog(
 
                 Spacer(Modifier.height(14.dp))
 
-                // Continuous Camera Viewport
+                // Square & Taller Viewfinder Box
                 Box(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 310.dp)
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.Black),
                     contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.90f)
-                            .height(180.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color.Black)
-                    ) {
-                        AndroidView(
-                            factory = { ctx ->
-                                val previewView = PreviewView(ctx).apply {
-                                    scaleType = PreviewView.ScaleType.FILL_CENTER
+                    AndroidView(
+                        factory = { ctx ->
+                            val previewView = PreviewView(ctx).apply {
+                                scaleType = PreviewView.ScaleType.FILL_CENTER
+                            }
+                            val providerFuture = ProcessCameraProvider.getInstance(ctx)
+
+                            providerFuture.addListener({
+                                val provider = providerFuture.get()
+                                val preview = Preview.Builder().build().also {
+                                    it.setSurfaceProvider(previewView.surfaceProvider)
                                 }
-                                val providerFuture = ProcessCameraProvider.getInstance(ctx)
+                                val analysis = ImageAnalysis.Builder()
+                                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                    .build()
 
-                                providerFuture.addListener({
-                                    val provider = providerFuture.get()
-                                    val preview = Preview.Builder().build().also {
-                                        it.setSurfaceProvider(previewView.surfaceProvider)
-                                    }
-                                    val analysis = ImageAnalysis.Builder()
-                                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                        .build()
+                                analysis.setAnalyzer(executor) { imageProxy ->
+                                    analyzeStreamFrame(
+                                        imageProxy = imageProxy,
+                                        recognizer = recognizer,
+                                        patterns = patterns
+                                    ) { frameCandidates ->
+                                        val newUniqueCandidates = mutableListOf<String>()
 
-                                    analysis.setAnalyzer(executor) { imageProxy ->
-                                        analyzeStreamFrame(
-                                            imageProxy = imageProxy,
-                                            recognizer = recognizer,
-                                            patterns = patterns
-                                        ) { frameCandidates ->
-                                            val newUniqueCandidates = mutableListOf<String>()
+                                        frameCandidates.forEach { candidate ->
+                                            if (candidate !in sessionCaptured) {
+                                                val currentHits = (hitCounts[candidate] ?: 0) + 1
+                                                hitCounts[candidate] = currentHits
 
-                                            frameCandidates.forEach { candidate ->
-                                                // If already saved in this session or history, reject immediately
-                                                if (candidate !in sessionCaptured) {
-                                                    val currentHits = (hitCounts[candidate] ?: 0) + 1
-                                                    hitCounts[candidate] = currentHits
-
-                                                    // Must be confirmed over at least 2 distinct frames to avoid misreads
-                                                    if (currentHits >= 2) {
-                                                        sessionCaptured.add(candidate)
-                                                        newUniqueCandidates.add(candidate)
-                                                        hitCounts.remove(candidate)
-                                                    }
-                                                }
-                                            }
-
-                                            if (newUniqueCandidates.isNotEmpty()) {
-                                                ContextCompat.getMainExecutor(ctx).execute {
-                                                    lastDetectedCode = newUniqueCandidates.last()
-                                                    detectedCount = sessionCaptured.size
-                                                    onDetected(newUniqueCandidates)
+                                                if (currentHits >= 2) {
+                                                    sessionCaptured.add(candidate)
+                                                    newUniqueCandidates.add(candidate)
+                                                    hitCounts.remove(candidate)
                                                 }
                                             }
                                         }
+
+                                        if (newUniqueCandidates.isNotEmpty()) {
+                                            ContextCompat.getMainExecutor(ctx).execute {
+                                                lastDetectedCode = newUniqueCandidates.last()
+                                                detectedCount = sessionCaptured.size
+                                                onDetected(newUniqueCandidates)
+                                            }
+                                        }
                                     }
+                                }
 
-                                    try {
-                                        provider.unbindAll()
-                                        provider.bindToLifecycle(
-                                            lifecycleOwner,
-                                            CameraSelector.DEFAULT_BACK_CAMERA,
-                                            preview,
-                                            analysis
-                                        )
-                                    } catch (_: Exception) {}
-                                }, ContextCompat.getMainExecutor(ctx))
-                                previewView
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
+                                try {
+                                    provider.unbindAll()
+                                    provider.bindToLifecycle(
+                                        lifecycleOwner,
+                                        CameraSelector.DEFAULT_BACK_CAMERA,
+                                        preview,
+                                        analysis
+                                    )
+                                } catch (_: Exception) {}
+                            }, ContextCompat.getMainExecutor(ctx))
+                            previewView
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
 
-                        // Scan Bounds Overlay
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(8.dp)
-                                .border(
-                                    width = 2.dp,
-                                    color = Color.White.copy(alpha = 0.85f),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                        )
+                    // Square Reticle Overlay
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(12.dp)
+                            .border(
+                                width = 2.dp,
+                                color = Color.White.copy(alpha = 0.9f),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                    )
 
-                        // Unique Count Badge
-                        Surface(
-                            modifier = Modifier
-                                .padding(10.dp)
-                                .align(Alignment.TopEnd),
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
+                    // Unique Scanned Counter Tag
+                    Surface(
+                        modifier = Modifier
+                            .padding(14.dp)
+                            .align(Alignment.TopEnd),
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    text = "$detectedCount Unique",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "$detectedCount Unique",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         }
                     }
                 }
 
                 Spacer(Modifier.height(14.dp))
 
-                // Real-time status text
+                // Status Indicator
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(9.dp)
+                            .size(10.dp)
                             .background(
                                 if (lastDetectedCode != null) Color(0xFF16A34A) else MaterialTheme.colorScheme.primary,
                                 CircleShape
@@ -264,7 +262,7 @@ fun ContinuousStreamScannerDialog(
                         text = if (lastDetectedCode != null) {
                             "Captured: $lastDetectedCode"
                         } else {
-                            "Point at barcodes or UID numbers..."
+                            "Align barcodes or numbers inside square..."
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
@@ -272,15 +270,7 @@ fun ContinuousStreamScannerDialog(
                     )
                 }
 
-                Spacer(Modifier.height(8.dp))
-
-                Text(
-                    text = "Duplicates are filtered automatically. Tap DONE when finished.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(14.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -288,7 +278,8 @@ fun ContinuousStreamScannerDialog(
                 ) {
                     Button(
                         onClick = onDismiss,
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.height(44.dp)
                     ) {
                         Text("DONE", fontWeight = FontWeight.Bold)
                     }

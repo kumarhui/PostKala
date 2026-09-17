@@ -37,6 +37,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import cvam.dignity.postkala.AdBanner
 import cvam.dignity.postkala.core.AppPreferences
+import cvam.dignity.postkala.features.scanner.StudioScannerDialog
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -66,6 +67,7 @@ fun PostKalaDashboard(
     val showAadhaarServices = remember { mutableStateOf(false) }
     val showAppInfo = remember { mutableStateOf(false) }
     val showWhatsappDialog = remember { mutableStateOf(false) }
+    val showStudioDialog = remember { mutableStateOf(false) }
 
     val allItems = remember(appPrefs.isAdvancedFeaturesEnabled) {
         mutableListOf<DashboardItem>().apply {
@@ -76,7 +78,7 @@ fun PostKalaDashboard(
                         subtitle = "Scanner",
                         icon = Icons.Default.QrCodeScanner,
                         color = Color(0xFF6366F1),
-                        route = "studio_scanner"
+                        action = { showStudioDialog.value = true }
                     )
                 )
             }
@@ -220,6 +222,12 @@ fun PostKalaDashboard(
                 }
             }
         }
+    }
+
+        if (showStudioDialog.value) {
+        StudioScannerDialog(
+            onDismiss = { showStudioDialog.value = false }
+        )
     }
 
     if (showWhatsappDialog.value) {
