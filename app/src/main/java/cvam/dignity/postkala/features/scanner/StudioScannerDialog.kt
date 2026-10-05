@@ -28,9 +28,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -452,6 +454,14 @@ private fun StudioCodeCardInternal(
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
+    val uriHandler = LocalUriHandler.current
+
+    val aadhaarQuickActions = remember {
+        listOf(
+            Triple("Validity", Icons.Default.CheckCircle, "https://myaadhaar.uidai.gov.in/check-aadhaar-validity/en"),
+            Triple("Download", Icons.Default.AccountBox, "https://myaadhaar.uidai.gov.in/genricDownloadAadhaar")
+        )
+    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -547,6 +557,32 @@ private fun StudioCodeCardInternal(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                 )
+            }
+
+            // Quick Actions for Aadhaar UID
+            if (item.type == ScannedCodeType.AADHAAR_UID) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                ) {
+                    aadhaarQuickActions.forEach { (title, icon, url) ->
+                        Button(
+                            onClick = { uriHandler.openUri(url) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White.copy(alpha = 0.2f),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Icon(icon, contentDescription = title, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
             }
 
             Spacer(Modifier.height(14.dp))

@@ -50,7 +50,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 
-// Enterprise desktop user-agent for India Post / SAP portals
 private const val DESKTOP_USER_AGENT =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
@@ -92,21 +91,14 @@ fun AppWebViewScreen(
                     }
                 },
                 actions = {
-                    // Quick Zoom Out
-                    IconButton(onClick = {
-                        webViewInstance?.zoomOut()
-                    }) {
+                    IconButton(onClick = { webViewInstance?.zoomOut() }) {
                         Icon(Icons.Default.ZoomOut, contentDescription = "Zoom Out")
                     }
 
-                    // Quick Zoom In
-                    IconButton(onClick = {
-                        webViewInstance?.zoomIn()
-                    }) {
+                    IconButton(onClick = { webViewInstance?.zoomIn() }) {
                         Icon(Icons.Default.ZoomIn, contentDescription = "Zoom In")
                     }
 
-                    // Desktop / Mobile Mode Toggle
                     IconButton(onClick = {
                         webViewInstance?.let { wv ->
                             isDesktopMode = !isDesktopMode
@@ -122,7 +114,6 @@ fun AppWebViewScreen(
                                 loadWithOverviewMode = isDesktopMode
                             }
 
-                            // Re-request url to trigger desktop content negotiation
                             wv.loadUrl(currentUrl)
                         }
                     }) {
@@ -189,20 +180,18 @@ fun AppWebViewScreen(
                                 domStorageEnabled = true
                                 databaseEnabled = true
 
-                                // Viewport & Zoom Configuration
                                 useWideViewPort = true
                                 loadWithOverviewMode = true
                                 setSupportZoom(true)
                                 builtInZoomControls = true
                                 displayZoomControls = false
 
-                                // Reduce base text zoom so overflow buttons do not drop off container boundaries
                                 textZoom = 90
 
                                 allowFileAccess = true
                                 allowContentAccess = true
                                 javaScriptCanOpenWindowsAutomatically = true
-                                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                                mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                                 cacheMode = WebSettings.LOAD_DEFAULT
                             }
 
@@ -231,7 +220,8 @@ fun AppWebViewScreen(
                                     handler: SslErrorHandler?,
                                     error: SslError?
                                 ) {
-                                    handler?.proceed()
+                                    // Compliant: Reject invalid SSL certificates to protect user traffic
+                                    handler?.cancel()
                                 }
 
                                 override fun onPageFinished(view: WebView?, finishedUrl: String?) {
@@ -239,7 +229,6 @@ fun AppWebViewScreen(
                                     isLoading = false
                                     canGoBack = view?.canGoBack() == true
 
-                                    // Override viewport meta tags that block zooming and force mobile scaling
                                     view?.evaluateJavascript(
                                         """
                                         (function() {
